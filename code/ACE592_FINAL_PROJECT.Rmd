@@ -374,6 +374,13 @@ pls_random <- plm(log(landvalue_acre_r) ~ log(cropland_acre) + log(percap_income
 
 summary(pls_fixed)
 
+summary(pls_random)
+
+stargazer(pls_fixed,pls_random, "plm",
+          title="Panel Regression Results",
+ dep.var.labels=c("Fixed effect Model","Random effect Model"),
+ column.sep.width = "1pt")
+
 # fixef(pls_fixed)
 
 pFtest(pls_fixed,ols)
