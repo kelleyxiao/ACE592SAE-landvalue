@@ -1,0 +1,411 @@
+---
+title: "ACE592 SAE"
+author: "Jae Hwang"
+date: "5/1/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r a02-pacakages, cache = FALSE}
+library(here)
+library(sf)
+library(ggplot2)
+library(tmap)
+library(ggcorrplot)
+library(patchwork)
+library(flextable)
+library(officer)
+library(parallel)
+library(tidyverse)
+library(corrplot)
+library(data.table)
+library(GWmodel)
+library(acs)
+library(tidycensus)
+library(viridis)
+```
+
+
+```{r start, echo=T, cache = FALSE}
+
+
+# api.key.install(key="592bc14cnotarealkey686552b17fda3c89dd389")
+
+census_api_key('ece023f95c9ca629c0441eddb9d3a8759513e26e', overwrite =T, install = T)
+
+
+
+library("readxl")
+
+#### ACS nad Decenial
+#### 1997,2002,2007,2012 
+#### Demographics and Variables for dummy and county fixed effect
+####  Land Value ~ Pollution + Demographic + Vt + Uc + Ect
+
+#### Land Value 
+
+#### Agricultural Land Value
+#### Find Variables to check how the shape of county has changed
+#### Type of industry, portion of agricultural industry
+#### Type of Urban/Rural decomposition
+
+
+
+county_pop <-read_csv ('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/county_pop9010.csv')
+
+rural_urban <-read_csv('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/rural_urban9313.csv')
+
+
+
+susb_00 <-read_excel ('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/susb_2000.xls',col_names=T)
+
+susb_02 <-read_excel ('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/susb_2002.xls',col_names=T)
+
+susb_07 <-read_excel ('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/susb_2007.xls',col_names=T)
+
+
+susb_12 <-read_excel ('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/susb_2012.xls',col_names=T)
+
+
+head(susb_00)
+colnames(susb_00) <-c('state_code','state','fips_code','county','size','firms','est')
+colnames(susb_02) <-c('state_code','state','fips_code','county','size','firms','est')
+colnames(susb_07) <-c('state_code','state','fips_code','county','size','firms','est')
+colnames(susb_12) <-c('state_code','state','fips_code','county','size','firms','est')
+
+unique(susb_00$size)
+head(susb_00)
+
+
+estab_00 <-susb_00 %>% group_by(state,county,state_code,fips_code) %>%    filter(size!=unique(susb_00$size)[1])%>%
+  mutate( big_ent = last(est),
+         small_ent = first(est)) %>%summarise(big_ent00= mean(big_ent),
+                                              small_ent00 = mean(small_ent))
+
+
+estab_02 <-susb_02 %>% group_by(state_code,fips_code,state,county) %>%    filter(size!=unique(susb_02$size)[1])%>%
+  mutate(big_ent = last(est),
+         small_ent = first(est)) %>%summarise(big_ent02= mean(big_ent),
+                                              small_ent02 = mean(small_ent))
+
+
+estab_07 <- susb_07 %>% group_by(state_code,fips_code,state,county) %>%    filter(size!=unique(susb_07$size)[1])%>%
+  mutate(big_ent = last(est),
+         small_ent = first(est)) %>%summarise(big_ent07= mean(big_ent),
+                                              small_ent07 = mean(small_ent))
+
+
+estab_12 <- susb_12 %>% group_by(state_code,fips_code,state,county) %>%
+  mutate(big_ent = last(est), small_ent = first(est) - last(est)) %>%
+    summarise(big_ent12= mean(big_ent),
+              small_ent12 = mean(small_ent),
+              )
+
+
+est_00 <-estab_00 %>% unite("fips",state_code:fips_code,sep="")
+est_02 <-estab_02 %>% unite("fips",state_code:fips_code,sep="")
+est_07 <-estab_07 %>% unite("fips",state_code:fips_code,sep="")
+est_12 <-estab_12 %>% unite("fips",state_code:fips_code,sep="")
+
+est_00
+
+#### Change of Population from 1990 to 2010 
+names(county_pop)
+county_pop <- county_pop %>%dplyr::select(-c(8:10))
+
+colnames(county_pop) <- c('fips','state','county','r_u_cont13','pop90','pop00','pop10')
+
+#### Rural Urban Co
+### rural & urban continuum code for 1993, 2003, 2013
+names(rural_urban)
+rural_urban <- rural_urban %>%dplyr::select(1:5)
+colnames(rural_urban) <-c('fips','state','county','r_u_cont93','r_u_cont03')
+
+
+##### Merge estab, county_pop and rural_urban by fips code ####
+
+
+dim(county_pop)
+dim(rural_urban)
+dim(est_00)
+dim(est_02)
+dim(est_07)
+dim(est_12)
+
+
+##### Read Land value data
+land_temp_income  <-read_csv('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/df_land_temp_income.csv')
+
+
+land_wide <-pivot_wider(land_temp_income,names_from = year,values_from = c(landvalue_acre_r,croprev_acreusd_r,percap_income_r,pdensity_sqm,cropland_acre,temp,prec))
+
+                                                
+
+
+land_est00 <- unique(left_join(land_wide,est_00,by='fips'))
+land_est0_2 <- unique(left_join(land_est00,est_02,by='fips'))
+land_est0_2_7 <- unique(left_join(land_est0_2,est_07,by='fips'))
+land_est0_2_7_12 <- unique(left_join(land_est0_2_7,est_12,by='fips'))
+land_est0_2_7_12_pop <- unique(left_join(land_est0_2_7_12,county_pop,by='fips'))
+land_est0_2_7_12_pop_rur <- 
+unique(left_join(land_est0_2_7_12_pop,rural_urban,by='fips'))
+
+land_dec <-land_est0_2_7_12_pop_rur %>%
+  dplyr::select(fips,state,county,corn_belt,Division,Region,land_sqm,
+                landvalue_acre_r_1997,landvalue_acre_r_2002,landvalue_acre_r_2007,
+                landvalue_acre_r_2012,croprev_acreusd_r_1997,croprev_acreusd_r_2002,
+                croprev_acreusd_r_2007,croprev_acreusd_r_2012,
+                percap_income_r_1997,percap_income_r_2002,percap_income_r_2007,
+                percap_income_r_2012,pdensity_sqm_1997,pdensity_sqm_2002,
+                pdensity_sqm_2007,pdensity_sqm_2012,
+                cropland_acre_1997,cropland_acre_2002,cropland_acre_2007,
+                cropland_acre_2012,temp_1997,temp_2002,temp_2007,temp_2012,
+                prec_1997,prec_2002,prec_2007,prec_2012,
+                pop90,pop00,pop10,r_u_cont93,r_u_cont03,r_u_cont13,
+                big_ent00,big_ent02,big_ent07,big_ent12,
+                small_ent00,small_ent02,small_ent07,small_ent12)
+      
+
+
+tarr <- get_acs(geography = "county", variables = "B19013_001", geometry = TRUE, year = 2020)
+
+county_geo <-tarr %>% mutate(fips = GEOID) %>%
+  dplyr::select(fips)
+
+land_decomp <-left_join(land_dec,county_geo, by='fips')
+
+land_comb_sf<-land_decomp %>%st_as_sf()
+
+names(land_comb_sf)
+
+# saveRDS(land_dec_sf,'/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/land_decomp.RDS')
+
+
+library(stargazer)
+table1 <-stargazer(data.table(land_comb_sf[,36:49]),type='text',out='txt',
+                   title="Descriptive statistics of U.S. counties",digit=1)
+
+
+plot_pop_rural <- ggplot(data=land_comb_sf) +
+  geom_density(aes(x=pop90, colour='pop90')) +
+  geom_density(aes(x=pop00, colour='pop00')) +
+  geom_density(aes(x=pop10, colour='pop10')) +
+  xlim(0,60000) +
+ ggtitle("Changes in Population Distribution in rural and Urban county")
+  
+
+plot_contum <- ggplot(data=land_comb_sf) +
+  geom_density(aes(x=r_u_cont93, colour='r_u_cont93')) +
+  geom_density(aes(x=r_u_cont03, colour='r_u_cont03')) +
+  geom_density(aes(x=r_u_cont13, colour='r_u_cont13')) +
+  xlim(0,10) +
+ ggtitle("Changes in Rural-Urban Continuum by decade")
+
+
+
+plot_s_ent <- ggplot(data=land_comb_sf) +
+  geom_density(aes(x=small_ent00, colour='small_ent00')) +
+  geom_density(aes(x=small_ent02, colour='small_ent02')) +
+  geom_density(aes(x=small_ent07, colour='small_ent07')) +
+  geom_density(aes(x=small_ent12, colour='small_ent12')) +
+  xlim(0,1500) +
+ ggtitle("Changes in number of small enterprises in rural area")
+
+
+plot_b_ent <- ggplot(data=land_comb_sf) +
+  geom_density(aes(x=big_ent00, colour='big_ent00')) +
+  geom_density(aes(x=big_ent02, colour='big_ent02')) +
+  geom_density(aes(x=big_ent07, colour='big_ent07')) +
+  geom_density(aes(x=big_ent12, colour='big_ent12')) +
+  xlim(0,500) +
+ ggtitle("Changes in number of big enterprises in rural area")
+
+  
+
+```
+
+
+```{r Data Combining, cache = FALSE}
+
+
+land_comb_sf<-readRDS('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/land_decomp.RDS')
+
+df_n02<- read_csv('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/df_n02_1997_2012.csv')
+
+df_s02<- read_csv('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/df_s02_1997_2012.csv')
+
+disas_disc <- read_csv('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/disaster_discrete.csv')
+
+disas_cont <- read_csv('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/disaster_continuous.csv')
+
+
+n02_wide <-df_n02 %>% pivot_wider(names_from=year,values_from=n02)
+
+colnames(n02_wide) <- c('fips', 'n02_97','n02_02','n02_07','n02_12' )
+
+s02_wide <-df_s02 %>% pivot_wider(names_from=year,values_from=s02)
+
+colnames(s02_wide) <- c('fips', 's02_97','s02_02','s02_07','s02_12' )
+
+
+
+disas_comb <-disas_disc %>% group_by(fips,year) %>% summarise(disaster=last(disaster_ct))
+
+disas_wide <-disas_comb %>% pivot_wider(names_from=year,values_from=disaster)
+
+colnames(disas_wide) <- c('fips','disas97','disas02','disas07','disas12')
+
+class(land_comb_sf$fips)
+
+land_comb_sf$fips <- as.numeric(land_comb_sf$fips)
+disas_wide$fips <- as.numeric(disas_wide$fips)
+
+ land_n02<- left_join(land_comb_sf,n02_wide,by='fips')
+ land_n02_s02<- left_join(land_n02,s02_wide,by='fips')
+ land_comb_final <- left_join(land_n02_s02,disas_wide,by='fips')
+
+ 
+
+  saveRDS(land_comb_final,'/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/land_comb_final.rds') 
+
+
+
+```
+
+
+```{r Data Analytics, cache = FALSE}
+
+
+  land_fin <-readRDS('/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/land_comb_final.rds') 
+
+names(land_fin)
+
+
+### Add pop_y07,r_u_cont_y07 
+
+land_fin$pop_y07 <-rep(NA,length(land_fin$fips))
+land_fin$r_u_cont_y07 <-rep(NA,length(land_fin$fips))
+
+
+names(land_fin)
+
+colnames(land_fin) <- c("fips","state","county","corn_belt","Division","Region", "land_sqm",
+"landvalue_acre_r_y1", "landvalue_acre_r_y2" ,"landvalue_acre_r_y3","landvalue_acre_r_y4",  "croprev_acreusd_r_y1","croprev_acreusd_r_y2", "croprev_acreusd_r_y3", "croprev_acreusd_r_y4", "percap_income_r_y1","percap_income_r_y2",   "percap_income_r_y3",   "percap_income_r_y4",   "pdensity_sqm_y1","pdensity_sqm_y2","pdensity_sqm_y3","pdensity_sqm_y4" ,
+"cropland_acre_y1","cropland_acre_y2" , "cropland_acre_y3"  ,   "cropland_acre_y4"  ,
+"temp_y1","temp_y2","temp_y3", "temp_y4", "prec_y1", "prec_y2", "prec_y3","prec_y4",
+"pop_y1", "pop_y2","pop_y4","r_u_cont_y1", "r_u_cont_y2","r_u_cont_y4",
+"big_ent_y1", "big_ent_y2", "big_ent_y3","big_ent_y4",
+"small_ent_y1","small_ent_y2","small_ent_y3", "small_ent_y4",
+"geometry","n02_y1", "n02_y2","n02_y3","n02_y4",
+"s02_y1","s02_y2","s02_y3", "s02_y4",
+"disas_y1","disas_y2","disas_y3","disas_y4","pop_y3","r_u_cont_y3")
+
+library(panelr) 
+
+names(land_fin)
+
+land_fin2 <-land_fin %>% filter(!st_is_empty(land_fin))
+
+
+
+### Make neighbors
+
+coord_land <-st_coordinates(land_fin2)
+
+### Remove Isolated counties
+
+land_fin3 <-land_fin2[-c(1183, 1189, 2902, 3065, 3075, 3082, 3084, 3114),] 
+
+land_long <-long_panel(land_fin3, prefix = "_y", begin = 1, end = 4, label_location = "end")   
+ 
+
+# saveRDS(land_long, '/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/land_panel_9712.rds')
+
+land_long<-readRDS( '/Users/hwangjaeseok/Desktop/DIFM/ACE_592/FINAL/ACE 592-Python project/land_panel_9712.rds')
+
+
+
+##### Panel Regression
+
+library(splm)
+library(BMA)
+library(Ecfun)
+library(Ecdat)
+library(ks)
+library(spdep)
+
+#### Make Spatial Weight Matrix
+
+
+land_nb<-land_fin3 %>% as('Spatial') %>% poly2nb(queen=T)
+
+land_nb_mat  <- nb2mat(land_nb, style="W")
+
+
+#### Expand Matrix for 4 round panel data
+land_nb_T <-bdiag(land_nb_mat,land_nb_mat,land_nb_mat,land_nb_mat)
+
+NTlistw<-mat2listw(land_nb_T)
+
+names(land_long)
+
+library(plm) 
+
+
+land_long <-land_long %>%mutate(s_ent_r = small_ent/big_ent) 
+
+land_long$fips <- as.factor(land_long$fips)
+
+ols <- lm(log(landvalue_acre_r) ~ log(cropland_acre) + log(percap_income_r) + log(pdensity_sqm) + 
+                n02 + s02 + temp + prec + disas + corn_belt + s_ent_r , data=land_long)
+
+
+pls_fixed <- plm(log(landvalue_acre_r) ~ log(cropland_acre) + log(percap_income_r) + log(pdensity_sqm) + 
+                n02 + s02 + temp + prec + disas + corn_belt + s_ent_r , data=land_long,
+              index=c('fips','wave'),model="within", effect="individual") 
+
+pls_random <- plm(log(landvalue_acre_r) ~ log(cropland_acre) + log(percap_income_r) + log(pdensity_sqm) + 
+                n02 + s02 + temp + prec + disas + corn_belt + s_ent_r , data=land_long,
+              index=c('fips','wave'),model="random") 
+
+
+summary(pls_fixed)
+
+# fixef(pls_fixed)
+
+pFtest(pls_fixed,ols)
+
+randomtest<- plmtest(pls_random)
+
+
+randomtest
+##It is significant so some form of parameter heterogeneity must be taken into account
+
+
+
+
+##### Spatial Panel Regression 
+
+# p_sarar.fixed <- spml(formula = log(landvalue_acre_r) ~ log(cropland_acre) + log(percap_income_r) + log(pdensity_sqm) + n02 + s02 + temp + prec + disas + corn_belt + s_ent_r, data = land_long, index = NULL, listw =NTlistw , lag = TRUE, spatial.error = "kkp", model = "within", effect = "individual", method = "eigen")
+# summary(p_sarar.fixed)
+
+#### It Confirms significant inter-county variation is present
+
+### Moran's I Test
+
+### Spatial Panel Model Selection 
+
+### Spatial Panel Regression 
+
+### Data Description
+
+
+
+
+###### 
+
+
+```
