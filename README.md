@@ -10,7 +10,7 @@ The objecttive of this paper is to measure the determinants of agricultural land
 
 ## Data
 
-We use a wide array of data sources for our analysis. The time frame for our analysis comprises the following years: 1997, 2002, 2007, 2012. 
+The unit of analysis is the county. We use a wide array of data sources for our analysis. The time frame for our analysis comprises the following years: 1997, 2002, 2007, 2012. 
 
 *   **Land value:** Census of Agriculture (COA).
 *   **Income and Population:** USDA Economic Research Services.
