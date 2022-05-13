@@ -381,8 +381,6 @@ stargazer(pls_fixed,pls_random, "plm",
  dep.var.labels=c("Fixed effect Model","Random effect Model"),
  column.sep.width = "1pt")
 
-# fixef(pls_fixed)
-
 pFtest(pls_fixed,ols)
 
 randomtest<- plmtest(pls_random)
