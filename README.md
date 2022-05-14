@@ -5,7 +5,7 @@
 
 
 ## Objective
-The objecttive of this paper is to measure the determinants of agricultural land value in the United States. We also aim at understanding how these determinants have changed and how those changes could influence agricultural land value.
+The objective of this paper is to measure the determinants of agricultural land value in the United States. We also aim at understanding how these determinants have changed and how those changes could influence agricultural land value.
 
 
 ## Data
